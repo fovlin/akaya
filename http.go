@@ -22,8 +22,10 @@ func (handler handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response(w, r, r.URL.Path)
-	
+	err := response(w, r.URL.Path)
+	if err != nil {
+		record.Warn(err)
+	}
 }
 
 func setMime(fileName string, w http.ResponseWriter) {
@@ -33,62 +35,56 @@ func setMime(fileName string, w http.ResponseWriter) {
 	}
 }
 
-func response(w http.ResponseWriter, r *http.Request, url string) {
+func response(w http.ResponseWriter, url string) error {
 
-	root, err := os.OpenRoot(config.Root)
-	if err != nil {
-		record.Warn("(open resourse directory)", err)
-	}
-	defer root.Close()
-
-	url = path.Join("./", url)
+	url = path.Join(config.Root, url)
 
 	fileSata, err := os.Stat(url)
 	if os.IsNotExist(err) {
-		record.Warn(err)
-		http.Redirect(w, r, "/", http.StatusNotFound)
-		return
+		return err
 	}
 
-	if fileSata.IsDir() {
-
-		indexFile, err := root.Open(path.Join(url, "index.html"))
-		if err == nil {
-			defer indexFile.Close()
-			io.Copy(w, indexFile)
-		}
-
-		entry, err := indexDir(url)
+	if !fileSata.IsDir() {
+		err := fileResponse(url, w)
 		if err != nil {
-			record.Warn("read directory:", err)
-			return
+			return err
 		}
-
-		data, err := json.MarshalIndent(entry, "", "	")
-		if err != nil {
-			record.Warn("load directory list:", err)
-		}
-
-		w.Header().Set("Content-Type", "text/json")
-		w.Write(data)
-
 	} else {
-		file, err := root.Open(url)
-		if err != nil {
-			record.Warn("open file", err)
-			http.Redirect(w, r, "/", http.StatusForbidden)
-			return
-		}
-
-		setMime(url, w)
-
-		_, err = io.Copy(w, file)
-		if err != nil {
-			record.Warn("send file:", err)
-			http.Redirect(w, r, "/", http.StatusForbidden)
-			return
-		}
+		dirResponse(url, w)
 	}
+	return nil
+}
+
+func dirResponse(url string, w http.ResponseWriter) error {
+	entry, err := indexDir(url)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(entry, "", "	")
+	if err != nil {
+		return err
+	}
+
+	w.Header().Set("Content-Type", "text/json")
+	w.Write(data)
+
+	return nil
+}
+
+func fileResponse(url string, w http.ResponseWriter) error {
+	file, err := os.Open(url)
+	if err != nil {
+		return err
+	}
+
+	setMime(url, w)
+
+	_, err = io.Copy(w, file)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func indexDir(url string) (map[string]DirEntry, error) {

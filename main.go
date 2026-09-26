@@ -89,9 +89,9 @@ func loadConfig() (error) {
 	_, err = os.Stat(configFilePath)
 	if os.IsNotExist(err) {
 		if err = createConfig(); err != nil {
-			record.Error(err)
+			return err
 		}
-	} else if !os.IsNotExist(err) && err != nil {
+	} else if os.IsExist(err) && err != nil {
 		return err
 	}
 
@@ -124,7 +124,6 @@ func createConfig() (error) {
 }
 
 func initConfigFilePath() error {
-
 	userConfigDir, err := os.UserConfigDir()
 	if err != nil {
 		return nil
@@ -135,7 +134,6 @@ func initConfigFilePath() error {
 			return err
 		}
 	}
-
 
 	configFilePath = path.Join(userConfigDir, configFile)
 
