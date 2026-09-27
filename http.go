@@ -25,6 +25,7 @@ func (handler handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := response(w, r.URL.Path)
 	if err != nil {
 		record.Warn(err)
+		fmt.Fprint(w, err)
 	}
 }
 
@@ -40,11 +41,14 @@ func response(w http.ResponseWriter, url string) error {
 	url = path.Join(config.Root, url)
 
 	fileSata, err := os.Stat(url)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return err
 	}
 
 	if !fileSata.IsDir() {
+		w.Header().Set("connection", "keep-alive")
+		w.Header().Set("Content-Length", fmt.Sprint(fileSata.Size()))
+		w.Header().Set("Accept-Ranges", "bytes")
 		err := fileResponse(url, w)
 		if err != nil {
 			return err
